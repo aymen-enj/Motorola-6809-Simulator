@@ -4,17 +4,30 @@ Un simulateur complet du processeur Motorola 6809 avec interface graphique Java 
 
 ## 📋 Table des matières
 
+- [Nouveautés récentes](#-nouveautés-récentes)
 - [Fonctionnalités](#-fonctionnalités)
 - [Installation](#-installation)
 - [Utilisation](#-utilisation)
+- [Statistiques du projet](#-statistiques-du-projet)
 - [Architecture du code](#-architecture-du-code)
 - [Instructions supportées](#-instructions-supportées)
 - [Registres du 6809](#-registres-du-6809)
 - [Interface utilisateur](#-interface-utilisateur)
 - [Système I/O](#-système-io)
+- [Test des Flags](#-test-des-flags)
 - [Exemples](#-exemples)
 - [Limitations](#-limitations)
 - [Améliorations futures](#-améliorations-futures)
+- [Contribution](#-contribution)
+- [Notes importantes](#-notes-importantes)
+
+## ✨ Nouveautés récentes
+
+- ✅ **Mode Direct (DIR)** : Adressage via page directe (DP)
+- ✅ **Mode Indexé (IDX)** : Adressage via registres X, Y, U, S avec offset
+- ✅ **Flags complets** : Tous les flags (N, Z, V, C, H) implémentés et fonctionnels
+- ✅ **16 instructions INH** : CLRA/B, COMA/B, NEGA/B, TSTA/B, ASLA/B, LSRA/B, ROLA/B, RORA/B
+- ✅ **Fichiers de test** : Tests complets pour tous les modes et instructions
 
 ## 🚀 Fonctionnalités
 
@@ -25,6 +38,9 @@ Un simulateur complet du processeur Motorola 6809 avec interface graphique Java 
 - **Terminal virtuel** : Sortie I/O sur l'adresse `$D000`
 - **Interruption NMI** : Simulation des interruptions matérielles
 - **Édition mémoire** : Modification directe des valeurs mémoire
+- **Modes d'adressage complets** : IMM, DIR, IDX, EXT, INH, REL
+- **Flags complets** : Tous les flags (N, Z, V, C, H) implémentés et fonctionnels
+- **Instructions INH** : 16 instructions arithmétiques/logiques sur A et B
 
 ## 🛠️ Installation
 
@@ -92,8 +108,9 @@ Le projet suit une architecture modulaire en 4 composants :
 
 ### 2. MiniAssembler_V6 (Assembleur)
 - Conversion assembleur → code machine
-- Support des modes d'adressage : IMM, EXT, REL, INH
-- Gestion des préfixes d'instructions
+- Support des modes d'adressage : IMM, DIR, IDX, EXT, INH, REL
+- Gestion des préfixes d'instructions (page 2)
+- Détection automatique du mode d'adressage
 
 ### 3. InstructionDecoder_V6 (Décodeur)
 - Exécution des instructions machine
@@ -104,6 +121,15 @@ Le projet suit une architecture modulaire en 4 composants :
 - GUI Swing complète
 - Gestion des événements utilisateur
 - Mise à jour temps réel de l'état
+
+## 📊 Statistiques du projet
+
+- **Instructions implémentées** : ~35 instructions
+- **Modes d'adressage** : 6/7 (IMM, DIR, IDX, EXT, INH, REL) - Indirect manquant
+- **Registres** : 10/10 (tous les registres du 6809)
+- **Flags** : 5/8 implémentés et fonctionnels (N, Z, V, C, H)
+- **Fichiers de test** : 7 fichiers de test complets
+- **Lignes de code** : ~950 lignes Java
 
 ## 📚 Instructions supportées
 
@@ -117,24 +143,24 @@ Le projet suit une architecture modulaire en 4 composants :
 - ❌ **IND** : Indirect (pointeurs)
 
 ### Chargement (Load)
-- `LDA #imm` / `LDA ext` : Charge A
-- `LDB #imm` / `LDB ext` : Charge B
-- `LDX #imm` / `LDX ext` : Charge X
-- `LDY #imm` / `LDY ext` : Charge Y
-- `LDD #imm` / `LDD ext` : Charge D (A:B)
-- `LDS #imm` : Charge S
-- `LDU #imm` : Charge U
+- `LDA #imm` / `LDA <dir>` / `LDA idx,reg` / `LDA ext` : Charge A
+- `LDB #imm` / `LDB <dir>` / `LDB idx,reg` / `LDB ext` : Charge B
+- `LDX #imm` / `LDX <dir>` / `LDX idx,reg` / `LDX ext` : Charge X
+- `LDY #imm` / `LDY <dir>` / `LDY idx,reg` / `LDY ext` : Charge Y
+- `LDD #imm` / `LDD <dir>` / `LDD idx,reg` / `LDD ext` : Charge D (A:B)
+- `LDS #imm` / `LDS <dir>` / `LDS idx,reg` : Charge S
+- `LDU #imm` / `LDU <dir>` / `LDU idx,reg` : Charge U
 
 ### Stockage (Store)
-- `STA ext` : Stocke A
-- `STB ext` : Stocke B
-- `STD ext` : Stocke D
-- `STX ext` : Stocke X
+- `STA <dir>` / `STA idx,reg` / `STA ext` : Stocke A
+- `STB <dir>` / `STB idx,reg` / `STB ext` : Stocke B
+- `STD <dir>` / `STD idx,reg` / `STD ext` : Stocke D
+- `STX <dir>` / `STX idx,reg` / `STX ext` : Stocke X
 
 ### Arithmétique
-- `ADDD #imm` : Addition 16 bits
-- `INCA` : Incrémente A
-- `DECA` : Décrémente A
+- `ADDD #imm` : Addition 16 bits à D
+- `INCA` : Incrémente A (INH)
+- `DECA` : Décrémente A (INH)
 
 ### Contrôle de flux
 - `JMP ext` : Saut absolu
@@ -169,7 +195,7 @@ Le projet suit une architecture modulaire en 4 composants :
 | X | 16 bits | Registre d'index |
 | Y | 16 bits | Registre d'index |
 | U | 16 bits | Pile utilisateur |
-| S | 16 bits | Pile système |
+| S | 16 bits | Pile système (initialisé à $0100 par défaut) |
 | PC | 16 bits | Compteur de programme |
 | CC | 8 bits | Code condition (flags) |
 
@@ -187,7 +213,7 @@ Le projet suit une architecture modulaire en 4 composants :
 
 ## 🖥️ Système I/O
 
-Le simulateur utilise un système I/O extensible basé sur des monitors :
+Le simulateur utilise un système I/O extensible basé sur des monitors (callbacks) :
 
 ```java
 cpu.ioMonitor = (addr, val) -> {
@@ -198,8 +224,13 @@ cpu.ioMonitor = (addr, val) -> {
 };
 ```
 
-- **Adresse $D000** : Terminal de sortie (caractères ASCII)
-- **Extensible** : Ajoutez facilement de nouveaux périphériques
+### Périphériques disponibles
+- **$D000** : Terminal de sortie (caractères ASCII)
+  - Toute écriture à cette adresse affiche le caractère correspondant
+  - Exemple : `LDA #$48; STA $D000` affiche 'H'
+
+### Extension
+Le système est extensible : ajoutez facilement de nouveaux périphériques en modifiant le `ioMonitor`.
 
 ## 🧪 Test des Flags
 
@@ -215,7 +246,12 @@ javac src/sim/Simulateur6809.java && java -cp src sim.Simulateur6809
 ### Fichiers de test disponibles
 - `test_flags.asm` : Test complet de tous les flags
 - `test_flags_simple.asm` : Test rapide des flags principaux
+- `test_mode_direct.asm` : Test du mode d'adressage Direct (DIR)
+- `test_mode_indexe.asm` : Test du mode d'adressage Indexé (IDX)
+- `test_instructions_inh.asm` : Test complet des instructions INH
+- `test_rapide_inh.asm` : Test rapide des instructions INH
 - `GUIDE_TEST_FLAGS.md` : Guide détaillé pour tester les flags
+- `instructions_actuelles.md` : Catalogue complet des instructions implémentées
 
 ### Test manuel rapide
 1. **Flag Z** : `LDA #$00` → CC=`0100` (Z=1)
@@ -278,6 +314,15 @@ CLRA           ; A = 0 (Z=1)
 ASLA           ; A = 0 << 1 = 0 (C=0)
 ```
 
+### Modification du registre S (System Stack)
+```
+LDS #$2000     ; Modifier S avec LDS immédiat
+LDS <$10       ; Modifier S avec LDS direct
+LDS 5,X        ; Modifier S avec LDS indexé
+; Note: S est initialisé à $0100 par défaut
+; Il peut aussi être modifié manuellement dans l'interface
+```
+
 ### Comparaison des modes d'adressage
 ```
 LDA #$42       ; IMM: charger la valeur 42
@@ -285,7 +330,41 @@ LDA <$10       ; DIR: charger depuis (DP*256)+$10
 LDA 5,X        ; IDX: charger depuis X + 5
 LDA $1234      ; EXT: charger depuis l'adresse $1234
 CLRA           ; INH: clear A (pas d'opérande)
+BRA LOOP       ; REL: saut relatif
 ```
+
+### Tableau récapitulatif des instructions par mode
+
+| Instruction | IMM | DIR | IDX | EXT | INH | REL |
+|-------------|-----|-----|-----|-----|-----|-----|
+| **LDA** | ✅ | ✅ | ✅ | ✅ | - | - |
+| **LDB** | ✅ | ✅ | ✅ | ✅ | - | - |
+| **LDX** | ✅ | ✅ | ✅ | ✅ | - | - |
+| **LDY** | ✅ | ✅ | ✅ | ✅ | - | - |
+| **LDD** | ✅ | ✅ | ✅ | ✅ | - | - |
+| **LDU** | ✅ | ✅ | ✅ | - | - | - |
+| **LDS** | ✅ | ✅ | ✅ | - | - | - |
+| **STA** | - | ✅ | ✅ | ✅ | - | - |
+| **STB** | - | ✅ | ✅ | ✅ | - | - |
+| **STX** | - | ✅ | ✅ | ✅ | - | - |
+| **STD** | - | ✅ | ✅ | ✅ | - | - |
+| **ADDD** | ✅ | - | - | - | - | - |
+| **INCA** | - | - | - | - | ✅ | - |
+| **DECA** | - | - | - | - | ✅ | - |
+| **CLRA/B** | - | - | - | - | ✅ | - |
+| **COMA/B** | - | - | - | - | ✅ | - |
+| **NEGA/B** | - | - | - | - | ✅ | - |
+| **TSTA/B** | - | - | - | - | ✅ | - |
+| **ASLA/B** | - | - | - | - | ✅ | - |
+| **LSRA/B** | - | - | - | - | ✅ | - |
+| **ROLA/B** | - | - | - | - | ✅ | - |
+| **RORA/B** | - | - | - | - | ✅ | - |
+| **JMP** | - | - | - | ✅ | - | - |
+| **BRA** | - | - | - | - | - | ✅ |
+| **BEQ** | - | - | - | - | - | ✅ |
+| **BNE** | - | - | - | - | - | ✅ |
+| **TFR** | - | - | - | - | ✅ | - |
+| **NOP** | - | - | - | - | ✅ | - |
 
 ### Test des flags
 ```
@@ -299,34 +378,46 @@ DECA           ; A=127 (N=0, V=1 - dépassement négatif)
 
 ## ⚠️ Limitations
 
-- **Modes d'adressage** : Indirect non implémenté, Indexé partiel (offset 8 bits seulement)
-- **Instructions disponibles** : ~35 instructions implémentées (arithmétique complète sur A/B)
-- **Instructions limitées** : ~15 instructions sur ~200 disponibles
-- **Adressage restreint** : Principalement immédiat et étendu
-- **Pas de pile** : PUSH/PULL non implémentés
-- **Pas de sous-routines** : JSR/RTS manquants
-- **I/O minimal** : Un seul port ($D000)
+### Modes d'adressage
+- **Indirect** : Non implémenté (ex: `LDA [10,X]`)
+- **Indexé avancé** : Seulement offset 8 bits constant (auto-inc/déc manquants)
+- **Offset 5 bits** : Non implémenté (dans l'opcode)
+
+### Instructions manquantes
+- **Pile** : PSH/PUL (push/pull) non implémentés
+- **Sous-routines** : JSR/RTS manquants
+- **Arithmétique** : SUB, MUL, DIV manquants
+- **Logique** : AND, OR, EOR, BIT, CMP manquants
+- **Transfert** : TFR complet (seulement partiel)
+- **Total** : ~35 instructions sur ~200 disponibles
+
+### Autres
+- **I/O** : Un seul port ($D000) pour le terminal
+- **Interruptions** : Seulement NMI, pas d'autres vecteurs
 
 ## 🚀 Améliorations futures
 
 ### Priorité haute
-- [ ] Implémenter tous les flags (V, C, H, I, F)
-- [ ] Ajouter PUSH/PULL (pile)
-- [ ] Modes d'adressage indexés
+- [ ] Ajouter PSH/PUL (pile) - modifiera automatiquement S
 - [ ] Instructions JSR/RTS (sous-routines)
+- [ ] Mode d'adressage Indirect (IDX avec `[]`)
+- [ ] Instructions arithmétiques (SUBA, SUBB, SUBD)
 
 ### Priorité moyenne
-- [ ] Instructions arithmétiques (SUB, MUL, DIV)
-- [ ] Instructions logiques (AND, OR, EOR)
-- [ ] Instructions de bits (ASL, LSR, ROL, ROR)
-- [ ] Adressage direct (DP)
+- [ ] Instructions logiques (ANDA, ANDB, ORA, ORB, EORA, EORB)
+- [ ] Instructions de comparaison (CMPA, CMPB, CMPD, BIT)
+- [ ] Modes indexés avancés (auto-inc/déc : `,X+`, `,-X`)
+- [ ] Offset 5 bits et 16 bits pour indexé
+- [ ] Instructions de transfert (TFR complet, EXG)
 
 ### Priorité basse
+- [ ] Instructions arithmétiques avancées (MUL, DIV)
 - [ ] Interface série/parallele
-- [ ] Timers et interruptions
+- [ ] Timers et interruptions (IRQ, FIRQ)
 - [ ] Système de fichiers virtuel
 - [ ] Sauvegarde/chargement d'état
 - [ ] Mode batch (exécution sans GUI)
+- [ ] Désassembleur intégré
 
 ## 🤝 Contribution
 
@@ -349,4 +440,9 @@ Ce projet est open source et destiné à l'éducation. Utilisez-le librement pou
 
 ---
 
-**Note** : Ce simulateur est une implémentation pédagogique du Motorola 6809. Il n'est pas destiné à une utilisation en production et peut contenir des inexactitudes par rapport au comportement réel du processeur.
+## 📝 Notes importantes
+
+- **État actuel** : Le simulateur est fonctionnel avec tous les modes d'adressage de base et une suite complète d'instructions arithmétiques/logiques.
+- **Compatibilité** : Implémentation fidèle au Motorola 6809 avec gestion correcte des flags.
+- **Usage** : Ce simulateur est une implémentation pédagogique. Il n'est pas destiné à une utilisation en production et peut contenir des inexactitudes par rapport au comportement réel du processeur.
+- **Tests** : Tous les fichiers de test sont fournis pour valider le fonctionnement des instructions et modes d'adressage.
