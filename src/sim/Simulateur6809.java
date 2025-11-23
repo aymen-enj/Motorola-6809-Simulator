@@ -217,23 +217,44 @@ class MiniAssembler_V6 {
 
     static {
         // Chargements
-        OPCODES.put("LDA_IMM", 0x86); OPCODES.put("LDA_EXT", 0xB6);
-        OPCODES.put("LDB_IMM", 0xC6); OPCODES.put("LDB_EXT", 0xF6);
-        OPCODES.put("LDX_IMM", 0x8E); OPCODES.put("LDX_EXT", 0xBE);
-        OPCODES.put("LDY_IMM", 0x108E); OPCODES.put("LDY_EXT", 0x10BE); // Y utilise un préfixe 10
-        OPCODES.put("LDD_IMM", 0xCC); OPCODES.put("LDD_EXT", 0xFC);
-        OPCODES.put("LDS_IMM", 0x10CE); 
-        OPCODES.put("LDU_IMM", 0xCE); 
-        
+        OPCODES.put("LDA_IMM", 0x86); OPCODES.put("LDA_DIR", 0x96); OPCODES.put("LDA_IDX", 0xA6); OPCODES.put("LDA_EXT", 0xB6);
+        OPCODES.put("LDB_IMM", 0xC6); OPCODES.put("LDB_DIR", 0xD6); OPCODES.put("LDB_IDX", 0xE6); OPCODES.put("LDB_EXT", 0xF6);
+        OPCODES.put("LDX_IMM", 0x8E); OPCODES.put("LDX_DIR", 0x9E); OPCODES.put("LDX_IDX", 0xAE); OPCODES.put("LDX_EXT", 0xBE);
+        OPCODES.put("LDY_IMM", 0x108E); OPCODES.put("LDY_DIR", 0x109E); OPCODES.put("LDY_IDX", 0x10AE); OPCODES.put("LDY_EXT", 0x10BE); // Y utilise un préfixe 10
+        OPCODES.put("LDD_IMM", 0xCC); OPCODES.put("LDD_DIR", 0xDC); OPCODES.put("LDD_IDX", 0xEC); OPCODES.put("LDD_EXT", 0xFC);
+        OPCODES.put("LDS_IMM", 0x10CE); OPCODES.put("LDS_DIR", 0x10DE); OPCODES.put("LDS_IDX", 0x10EE);
+        OPCODES.put("LDU_IMM", 0xCE); OPCODES.put("LDU_DIR", 0xDE); OPCODES.put("LDU_IDX", 0xEE);
+
         // Stockage
-        OPCODES.put("STA_EXT", 0xB7); OPCODES.put("STB_EXT", 0xF7);
-        OPCODES.put("STD_EXT", 0xFD);
-        OPCODES.put("STX_EXT", 0xBF);
+        OPCODES.put("STA_IDX", 0xA7); OPCODES.put("STA_DIR", 0x97); OPCODES.put("STA_EXT", 0xB7);
+        OPCODES.put("STB_IDX", 0xE7); OPCODES.put("STB_DIR", 0xD7); OPCODES.put("STB_EXT", 0xF7);
+        OPCODES.put("STD_IDX", 0xED); OPCODES.put("STD_DIR", 0xDD); OPCODES.put("STD_EXT", 0xFD);
+        OPCODES.put("STX_IDX", 0xAF); OPCODES.put("STX_DIR", 0x9F); OPCODES.put("STX_EXT", 0xBF);
         
         // Arithmétique
-        OPCODES.put("ADDD_IMM", 0xC3); 
-        OPCODES.put("INCA_INH", 0x4C); 
+        OPCODES.put("ADDD_IMM", 0xC3);
+        OPCODES.put("INCA_INH", 0x4C);
         OPCODES.put("DECA_INH", 0x4A);
+
+        // Instructions arithmétiques/logiques INH sur A
+        OPCODES.put("NEGA_INH", 0x40);
+        OPCODES.put("COMA_INH", 0x43);
+        OPCODES.put("LSRA_INH", 0x44);
+        OPCODES.put("RORA_INH", 0x46);
+        OPCODES.put("ASLA_INH", 0x48);
+        OPCODES.put("ROLA_INH", 0x49);
+        OPCODES.put("TSTA_INH", 0x4D);
+        OPCODES.put("CLRA_INH", 0x4F);
+
+        // Instructions arithmétiques/logiques INH sur B
+        OPCODES.put("NEGB_INH", 0x50);
+        OPCODES.put("COMB_INH", 0x53);
+        OPCODES.put("LSRB_INH", 0x54);
+        OPCODES.put("RORB_INH", 0x56);
+        OPCODES.put("ASLB_INH", 0x58);
+        OPCODES.put("ROLB_INH", 0x59);
+        OPCODES.put("TSTB_INH", 0x5D);
+        OPCODES.put("CLRB_INH", 0x5F);
 
         // Contrôle de flux
         OPCODES.put("JMP_EXT", 0x7E); 
@@ -271,7 +292,27 @@ class MiniAssembler_V6 {
                 val = parseHex(operand.substring(1));
             } else if (OPCODES.containsKey(mnemonic + "_REL")) {
                 mode = "REL";
-                val = parseHex(operand); 
+                val = parseHex(operand);
+            } else if (operand.startsWith("<") && OPCODES.containsKey(mnemonic + "_DIR")) {
+                // Mode Direct : <adresse (8 bits)
+                mode = "DIR";
+                val = parseHex(operand.substring(1));
+                if (val > 0xFF) throw new Exception("Adresse directe > 255 : " + operand);
+            } else if (operand.contains(",") && operand.matches(".*,[XYUS]$")) {
+                // Mode Indexé : offset,registre (ex: 10,X ou -5,Y)
+                mode = "IDX";
+                // Pour l'instant, on stocke l'opérande complet pour parsing dans le décodeur
+                val = 0; // Sera parsé plus tard
+            } else if (!operand.isEmpty() && OPCODES.containsKey(mnemonic + "_DIR")) {
+                // Vérifier si c'est une adresse 8 bits (mode direct automatique)
+                int parsedAddr = parseHex(operand);
+                if (parsedAddr <= 0xFF && !OPCODES.containsKey(mnemonic + "_EXT")) {
+                    mode = "DIR";
+                    val = parsedAddr;
+                } else {
+                    mode = "EXT";
+                    val = parsedAddr;
+                }
             } else if (!operand.isEmpty()) {
                 mode = "EXT";
                 val = parseHex(operand);
@@ -291,16 +332,38 @@ class MiniAssembler_V6 {
             }
 
             // Gestion Opérandes
-            if (mode.equals("EXT") || (mode.equals("IMM") && is16Bit(mnemonic))) {
+            if (mode.equals("IDX")) {
+                // Mode indexé : post-byte + offset éventuel
+                // Pour l'instant : offset 8 bits constant avec registre X,Y,U,S
+                if (operand.contains(",X")) {
+                    cpu.memory[addr++] = 0x84; // Post-byte pour offset 8 bits + X
+                } else if (operand.contains(",Y")) {
+                    cpu.memory[addr++] = 0xA4; // Post-byte pour offset 8 bits + Y
+                } else if (operand.contains(",U")) {
+                    cpu.memory[addr++] = 0xC4; // Post-byte pour offset 8 bits + U
+                } else if (operand.contains(",S")) {
+                    cpu.memory[addr++] = 0xE4; // Post-byte pour offset 8 bits + S
+                }
+                // Extraire l'offset de l'opérande (avant la virgule)
+                String offsetStr = operand.substring(0, operand.indexOf(','));
+                int offset = parseHex(offsetStr);
+                cpu.memory[addr++] = offset & 0xFF;
+            } else if (mode.equals("DIR")) {
+                // Mode direct : 1 octet (adresse 8 bits)
+                cpu.memory[addr++] = val & 0xFF;
+            } else if (mode.equals("EXT") || (mode.equals("IMM") && is16Bit(mnemonic))) {
+                // Mode étendu : 2 octets (adresse 16 bits)
                 cpu.memory[addr++] = (val >> 8) & 0xFF;
                 cpu.memory[addr++] = val & 0xFF;
             } else if (mode.equals("IMM")) {
+                // Mode immédiat 8 bits
                 cpu.memory[addr++] = val & 0xFF;
             } else if (mode.equals("REL")) {
+                // Mode relatif : offset 8 bits
                 int offset = val - (addr + 1);
                 cpu.memory[addr++] = offset & 0xFF;
             } else if (mnemonic.equals("TFR")) {
-                 cpu.memory[addr++] = 0x8B; 
+                 cpu.memory[addr++] = 0x8B;
             }
         }
         return true;
@@ -336,23 +399,65 @@ class InstructionDecoder_V6 {
         }
 
         switch (opcode) {
-            case 0x86: cpu.A = fetchByte(); cpu.updateFlags(cpu.A, false); break; 
-            case 0xB6: cpu.A = readMem(fetchWord()); cpu.updateFlags(cpu.A, false); break; 
-            case 0xC6: cpu.B = fetchByte(); cpu.updateFlags(cpu.B, false); break; 
-            case 0xCC: cpu.setD(fetchWord()); cpu.updateFlags(cpu.getD(), true); break; 
-            
-            // Indexés 16 bits
-            case 0x8E: cpu.X = fetchWord(); cpu.updateFlags(cpu.X, true); break; 
-            case 0xBE: cpu.X = readWord(fetchWord()); cpu.updateFlags(cpu.X, true); break;
-            case 0x108E: cpu.Y = fetchWord(); cpu.updateFlags(cpu.Y, true); break; 
-            case 0xCE: cpu.U = fetchWord(); cpu.updateFlags(cpu.U, true); break;
-            case 0x10CE: cpu.S = fetchWord(); cpu.updateFlags(cpu.S, true); break;
+            // Load A
+            case 0x86: cpu.A = fetchByte(); cpu.updateFlags(cpu.A, false); break;         // IMM
+            case 0x96: cpu.A = readMem(getDirectAddr(fetchByte())); cpu.updateFlags(cpu.A, false); break; // DIR
+            case 0xA6: cpu.A = readMem(getIndexedAddr(fetchByte())); cpu.updateFlags(cpu.A, false); break; // IDX
+            case 0xB6: cpu.A = readMem(fetchWord()); cpu.updateFlags(cpu.A, false); break; // EXT
 
-            // Store
-            case 0xB7: writeMem(fetchWord(), cpu.A); cpu.updateFlags(cpu.A, false); break; 
-            case 0xF7: writeMem(fetchWord(), cpu.B); cpu.updateFlags(cpu.B, false); break; 
-            case 0xFD: writeWord(fetchWord(), cpu.getD()); cpu.updateFlags(cpu.getD(), true); break; 
-            case 0xBF: writeWord(fetchWord(), cpu.X); cpu.updateFlags(cpu.X, true); break;
+            // Load B
+            case 0xC6: cpu.B = fetchByte(); cpu.updateFlags(cpu.B, false); break;         // IMM
+            case 0xD6: cpu.B = readMem(getDirectAddr(fetchByte())); cpu.updateFlags(cpu.B, false); break; // DIR
+            case 0xE6: cpu.B = readMem(getIndexedAddr(fetchByte())); cpu.updateFlags(cpu.B, false); break; // IDX
+            case 0xF6: cpu.B = readMem(fetchWord()); cpu.updateFlags(cpu.B, false); break; // EXT
+
+            // Load D
+            case 0xCC: cpu.setD(fetchWord()); cpu.updateFlags(cpu.getD(), true); break;   // IMM
+            case 0xDC: cpu.setD(readWord(getDirectAddr(fetchByte()))); cpu.updateFlags(cpu.getD(), true); break; // DIR
+            case 0xEC: cpu.setD(readWord(getIndexedAddr(fetchByte()))); cpu.updateFlags(cpu.getD(), true); break; // IDX
+            case 0xFC: cpu.setD(readWord(fetchWord())); cpu.updateFlags(cpu.getD(), true); break; // EXT
+
+            // Load X
+            case 0x8E: cpu.X = fetchWord(); cpu.updateFlags(cpu.X, true); break;          // IMM
+            case 0x9E: cpu.X = readWord(getDirectAddr(fetchByte())); cpu.updateFlags(cpu.X, true); break; // DIR
+            case 0xAE: cpu.X = readWord(getIndexedAddr(fetchByte())); cpu.updateFlags(cpu.X, true); break; // IDX
+            case 0xBE: cpu.X = readWord(fetchWord()); cpu.updateFlags(cpu.X, true); break; // EXT
+
+            // Load Y
+            case 0x108E: cpu.Y = fetchWord(); cpu.updateFlags(cpu.Y, true); break;        // IMM
+            case 0x109E: cpu.Y = readWord(getDirectAddr(fetchByte())); cpu.updateFlags(cpu.Y, true); break; // DIR
+            case 0x10AE: cpu.Y = readWord(getIndexedAddr(fetchByte())); cpu.updateFlags(cpu.Y, true); break; // IDX
+            case 0x10BE: cpu.Y = readWord(fetchWord()); cpu.updateFlags(cpu.Y, true); break; // EXT
+
+            // Load U
+            case 0xCE: cpu.U = fetchWord(); cpu.updateFlags(cpu.U, true); break;          // IMM
+            case 0xDE: cpu.U = readWord(getDirectAddr(fetchByte())); cpu.updateFlags(cpu.U, true); break; // DIR
+            case 0xEE: cpu.U = readWord(getIndexedAddr(fetchByte())); cpu.updateFlags(cpu.U, true); break; // IDX
+
+            // Load S
+            case 0x10CE: cpu.S = fetchWord(); cpu.updateFlags(cpu.S, true); break;        // IMM
+            case 0x10DE: cpu.S = readWord(getDirectAddr(fetchByte())); cpu.updateFlags(cpu.S, true); break; // DIR
+            case 0x10EE: cpu.S = readWord(getIndexedAddr(fetchByte())); cpu.updateFlags(cpu.S, true); break; // IDX
+
+            // Store A
+            case 0xA7: writeMem(getIndexedAddr(fetchByte()), cpu.A); cpu.updateFlags(cpu.A, false); break; // IDX
+            case 0x97: writeMem(getDirectAddr(fetchByte()), cpu.A); cpu.updateFlags(cpu.A, false); break; // DIR
+            case 0xB7: writeMem(fetchWord(), cpu.A); cpu.updateFlags(cpu.A, false); break; // EXT
+
+            // Store B
+            case 0xE7: writeMem(getIndexedAddr(fetchByte()), cpu.B); cpu.updateFlags(cpu.B, false); break; // IDX
+            case 0xD7: writeMem(getDirectAddr(fetchByte()), cpu.B); cpu.updateFlags(cpu.B, false); break; // DIR
+            case 0xF7: writeMem(fetchWord(), cpu.B); cpu.updateFlags(cpu.B, false); break; // EXT
+
+            // Store D
+            case 0xED: writeWord(getIndexedAddr(fetchByte()), cpu.getD()); cpu.updateFlags(cpu.getD(), true); break; // IDX
+            case 0xDD: writeWord(getDirectAddr(fetchByte()), cpu.getD()); cpu.updateFlags(cpu.getD(), true); break; // DIR
+            case 0xFD: writeWord(fetchWord(), cpu.getD()); cpu.updateFlags(cpu.getD(), true); break; // EXT
+
+            // Store X
+            case 0xAF: writeWord(getIndexedAddr(fetchByte()), cpu.X); cpu.updateFlags(cpu.X, true); break; // IDX
+            case 0x9F: writeWord(getDirectAddr(fetchByte()), cpu.X); cpu.updateFlags(cpu.X, true); break; // DIR
+            case 0xBF: writeWord(fetchWord(), cpu.X); cpu.updateFlags(cpu.X, true); break; // EXT
 
             case 0xC3: {
                 int operand = fetchWord();
@@ -372,6 +477,126 @@ class InstructionDecoder_V6 {
                 int original = cpu.A;
                 cpu.A = (cpu.A - 1) & 0xFF;
                 cpu.updateFlagsDec8(original, cpu.A);
+                break;
+            }
+
+            // Instructions INH sur A
+            case 0x40: { // NEGA
+                int original = cpu.A;
+                cpu.A = ((~original) + 1) & 0xFF; // Négation en complément à 2
+                cpu.updateFlagsNZ(cpu.A, false);
+                cpu.CC |= CPU6809_V6.FLAG_C; // Carry toujours mis pour NEGA
+                if (original == 0x80) cpu.CC |= CPU6809_V6.FLAG_V; // Overflow si -128
+                break;
+            }
+            case 0x43: { // COMA
+                cpu.A = (~cpu.A) & 0xFF;
+                cpu.updateFlagsNZ(cpu.A, false);
+                cpu.CC |= CPU6809_V6.FLAG_C; // Carry toujours mis pour COM
+                break;
+            }
+            case 0x44: { // LSRA
+                int carry = cpu.A & 0x01;
+                cpu.A = (cpu.A >> 1) & 0x7F; // Shift right logique
+                cpu.updateFlagsNZ(cpu.A, false);
+                if (carry != 0) cpu.CC |= CPU6809_V6.FLAG_C; else cpu.CC &= ~CPU6809_V6.FLAG_C;
+                break;
+            }
+            case 0x46: { // RORA
+                int carry = cpu.A & 0x01;
+                int oldCarry = (cpu.CC & CPU6809_V6.FLAG_C) != 0 ? 0x80 : 0;
+                cpu.A = ((cpu.A >> 1) | oldCarry) & 0xFF;
+                cpu.updateFlagsNZ(cpu.A, false);
+                if (carry != 0) cpu.CC |= CPU6809_V6.FLAG_C; else cpu.CC &= ~CPU6809_V6.FLAG_C;
+                break;
+            }
+            case 0x48: { // ASLA
+                int carry = (cpu.A & 0x80) != 0 ? 1 : 0;
+                cpu.A = (cpu.A << 1) & 0xFF;
+                cpu.updateFlagsNZ(cpu.A, false);
+                if (carry != 0) cpu.CC |= CPU6809_V6.FLAG_C; else cpu.CC &= ~CPU6809_V6.FLAG_C;
+                // Overflow pour ASLA : V = 1 si bit 6 et 7 étaient différents avant
+                int bit6 = (cpu.A & 0x40) != 0 ? 1 : 0;
+                int bit7 = (cpu.A & 0x80) != 0 ? 1 : 0;
+                if (bit6 != bit7) cpu.CC |= CPU6809_V6.FLAG_V; else cpu.CC &= ~CPU6809_V6.FLAG_V;
+                break;
+            }
+            case 0x49: { // ROLA
+                int oldCarry = (cpu.CC & CPU6809_V6.FLAG_C) != 0 ? 1 : 0;
+                int newCarry = (cpu.A & 0x80) != 0 ? CPU6809_V6.FLAG_C : 0;
+                cpu.A = ((cpu.A << 1) | oldCarry) & 0xFF;
+                cpu.updateFlagsNZ(cpu.A, false);
+                cpu.CC = (cpu.CC & ~CPU6809_V6.FLAG_C) | newCarry;
+                break;
+            }
+            case 0x4D: { // TSTA
+                cpu.updateFlagsNZ(cpu.A, false);
+                break;
+            }
+            case 0x4F: { // CLRA
+                cpu.A = 0;
+                cpu.updateFlagsNZ(cpu.A, false);
+                cpu.CC &= ~(CPU6809_V6.FLAG_V | CPU6809_V6.FLAG_C); // V et C remis à 0
+                break;
+            }
+
+            // Instructions INH sur B
+            case 0x50: { // NEGB
+                int original = cpu.B;
+                cpu.B = ((~original) + 1) & 0xFF; // Négation en complément à 2
+                cpu.updateFlagsNZ(cpu.B, false);
+                cpu.CC |= CPU6809_V6.FLAG_C; // Carry toujours mis pour NEGB
+                if (original == 0x80) cpu.CC |= CPU6809_V6.FLAG_V; // Overflow si -128
+                break;
+            }
+            case 0x53: { // COMB
+                cpu.B = (~cpu.B) & 0xFF;
+                cpu.updateFlagsNZ(cpu.B, false);
+                cpu.CC |= CPU6809_V6.FLAG_C; // Carry toujours mis pour COM
+                break;
+            }
+            case 0x54: { // LSRB
+                int carry = cpu.B & 0x01;
+                cpu.B = (cpu.B >> 1) & 0x7F; // Shift right logique
+                cpu.updateFlagsNZ(cpu.B, false);
+                if (carry != 0) cpu.CC |= CPU6809_V6.FLAG_C; else cpu.CC &= ~CPU6809_V6.FLAG_C;
+                break;
+            }
+            case 0x56: { // RORB
+                int carry = cpu.B & 0x01;
+                int oldCarry = (cpu.CC & CPU6809_V6.FLAG_C) != 0 ? 0x80 : 0;
+                cpu.B = ((cpu.B >> 1) | oldCarry) & 0xFF;
+                cpu.updateFlagsNZ(cpu.B, false);
+                if (carry != 0) cpu.CC |= CPU6809_V6.FLAG_C; else cpu.CC &= ~CPU6809_V6.FLAG_C;
+                break;
+            }
+            case 0x58: { // ASLB
+                int carry = (cpu.B & 0x80) != 0 ? 1 : 0;
+                cpu.B = (cpu.B << 1) & 0xFF;
+                cpu.updateFlagsNZ(cpu.B, false);
+                if (carry != 0) cpu.CC |= CPU6809_V6.FLAG_C; else cpu.CC &= ~CPU6809_V6.FLAG_C;
+                // Overflow pour ASLB
+                int bit6 = (cpu.B & 0x40) != 0 ? 1 : 0;
+                int bit7 = (cpu.B & 0x80) != 0 ? 1 : 0;
+                if (bit6 != bit7) cpu.CC |= CPU6809_V6.FLAG_V; else cpu.CC &= ~CPU6809_V6.FLAG_V;
+                break;
+            }
+            case 0x59: { // ROLB
+                int oldCarry = (cpu.CC & CPU6809_V6.FLAG_C) != 0 ? 1 : 0;
+                int newCarry = (cpu.B & 0x80) != 0 ? CPU6809_V6.FLAG_C : 0;
+                cpu.B = ((cpu.B << 1) | oldCarry) & 0xFF;
+                cpu.updateFlagsNZ(cpu.B, false);
+                cpu.CC = (cpu.CC & ~CPU6809_V6.FLAG_C) | newCarry;
+                break;
+            }
+            case 0x5D: { // TSTB
+                cpu.updateFlagsNZ(cpu.B, false);
+                break;
+            }
+            case 0x5F: { // CLRB
+                cpu.B = 0;
+                cpu.updateFlagsNZ(cpu.B, false);
+                cpu.CC &= ~(CPU6809_V6.FLAG_V | CPU6809_V6.FLAG_C); // V et C remis à 0
                 break;
             } 
 
@@ -398,15 +623,49 @@ class InstructionDecoder_V6 {
 
     private int fetchByte() { return cpu.memory[cpu.PC++] & 0xFF; }
     private int fetchWord() { return (fetchByte() << 8) | fetchByte(); }
+    // Calcul d'adresse pour le mode Direct
+    private int getDirectAddr(int offset8) {
+        return ((cpu.DP & 0xFF) << 8) | (offset8 & 0xFF);
+    }
+
+    // Calcul d'adresse pour le mode Indexé
+    private int getIndexedAddr(int postByte) {
+        // Extraire le numéro du registre (bits 0-1 du post-byte)
+        int regNum = postByte & 0x03;
+
+        // Déterminer la valeur du registre
+        int regValue;
+        switch (regNum) {
+            case 0: regValue = cpu.X; break; // X
+            case 1: regValue = cpu.Y; break; // Y
+            case 2: regValue = cpu.U; break; // U
+            case 3: regValue = cpu.S; break; // S
+            default: regValue = 0; break;
+        }
+
+        // Pour l'instant, on ne gère que les offsets 8 bits constants
+        // Post-byte 0x84+X, 0xA4+Y, 0xC4+U, 0xE4+S pour offset 8 bits
+        if ((postByte & 0x80) == 0) { // Bit 7 = 0 pour offset 8 bits
+            // Lire l'offset 8 bits suivant
+            int offset8 = fetchByte();
+            // L'offset est signé, on l'étend à 16 bits
+            int signedOffset = (offset8 & 0x80) != 0 ? offset8 | 0xFF00 : offset8;
+            return (regValue + signedOffset) & 0xFFFF;
+        }
+
+        // Pour les autres modes, retourner juste la valeur du registre
+        return regValue & 0xFFFF;
+    }
+
     private int readMem(int addr) { return cpu.memory[addr & 0xFFFF] & 0xFF; }
     private int readWord(int addr) { return (readMem(addr) << 8) | readMem(addr+1); }
-    
-    private void writeMem(int addr, int val) { 
+
+    private void writeMem(int addr, int val) {
         addr &= 0xFFFF;
-        cpu.memory[addr] = val & 0xFF; 
+        cpu.memory[addr] = val & 0xFF;
         if (cpu.ioMonitor != null) cpu.ioMonitor.onWrite(addr, val);
     }
-    
+
     private void writeWord(int addr, int val) {
         writeMem(addr, val >> 8);
         writeMem(addr+1, val);

@@ -48,6 +48,16 @@ DECA         ; N=0, V=1 (overflow négatif)
 1. `LDA #$0F` (15)
 2. `ADDA #$01` → CC : `0010 0000` (H=1 si implémenté)
 
+### Test des Instructions INH
+1. **CLRA/CLRB** : `LDA #$42; CLRA` → A=0, Z=1
+2. **COMA/COMB** : `LDA #$AA; COMA` → A=85, C=1
+3. **NEGA/NEGB** : `LDA #$01; NEGA` → A=255, N=1, C=1
+4. **TSTA/TSTB** : `LDA #$00; TSTA` → Z=1 (test seulement)
+5. **ASLA/ASLB** : `LDA #$80; ASLA` → A=0, C=1, V=1
+6. **LSRA/LSRB** : `LDA #$01; LSRA` → A=0, C=1
+7. **ROLA/ROLB** : `CLC; LDA #$80; ROLA` → A=0, C=1
+8. **RORA/RORB** : `SEC; LDA #$01; RORA` → A=128, C=1
+
 ## Méthode 3 : Test avec Breakpoints
 
 1. Dans le champ "Breakpoints", entrer : `0005,000A,000F`

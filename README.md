@@ -107,6 +107,15 @@ Le projet suit une architecture modulaire en 4 composants :
 
 ## 📚 Instructions supportées
 
+### Modes d'Adressage Disponibles
+- ✅ **IMM** : Immédiat (`#$valeur`) - valeur constante
+- ✅ **DIR** : Direct (`<$addr>` ou `addr≤255`) - adresse = (DP×256) + offset
+- ✅ **EXT** : Étendu (`$adresse`) - adresse 16 bits complète
+- ✅ **INH** : Implicite (pas d'opérande) - instruction autonome
+- ✅ **REL** : Relatif (pour sauts) - offset par rapport à PC
+- ✅ **IDX** : Indexé (`offset,reg`) - adresse = reg + offset (±127)
+- ❌ **IND** : Indirect (pointeurs)
+
 ### Chargement (Load)
 - `LDA #imm` / `LDA ext` : Charge A
 - `LDB #imm` / `LDB ext` : Charge B
@@ -132,6 +141,18 @@ Le projet suit une architecture modulaire en 4 composants :
 - `BRA rel` : Saut relatif toujours
 - `BEQ rel` : Saut si Z=1 (égal)
 - `BNE rel` : Saut si Z=0 (différent)
+
+### Arithmétiques/Logiques INH
+- `CLRA/CLRB` : Clear accumulateur (A/B = 0)
+- `COMA/COMB` : Complement accumulateur (~A/~B)
+- `NEGA/NEGB` : Négation accumulateur (-A/-B)
+- `TSTA/TSTB` : Test accumulateur (flags seulement)
+
+### Décalages/Rotations INH
+- `ASLA/ASLB` : Shift arithmétique gauche
+- `LSRA/LSRB` : Shift logique droite
+- `ROLA/ROLB` : Rotation gauche through carry
+- `RORA/RORB` : Rotation droite through carry
 
 ### Divers
 - `TFR reg,reg` : Transfert registre
@@ -230,6 +251,42 @@ ADDD #$1111    ; Additionner 1111 (Z=0, N=1, C=0, V=0)
 STD $D002      ; Stocker le résultat
 ```
 
+### Mode d'adressage Direct
+```
+LDA #$10       ; DP = $10 (page directe)
+TFR A,DP       ; Configurer DP
+LDA #$AA       ; Valeur à stocker
+STA <$20       ; Mode direct: adresse = $10*256 + $20 = $1020
+LDA <$20       ; Charger depuis $1020, A=$AA
+```
+
+### Mode d'adressage Indexé
+```
+LDX #$1000     ; Initialiser X
+LDA #$42       ; Valeur à stocker
+STA 5,X        ; IDX: adresse = X + 5 = $1005
+LDA 5,X        ; Charger depuis $1005, A=$42
+```
+
+### Instructions INH sur accumulateurs
+```
+LDA #$7F       ; A = 127
+TSTA           ; Tester A (Z=0, N=0)
+COMA           ; A = ~127 = 128 (N=1, C=1)
+NEGA           ; A = -128 = -128 (V=1, C=1)
+CLRA           ; A = 0 (Z=1)
+ASLA           ; A = 0 << 1 = 0 (C=0)
+```
+
+### Comparaison des modes d'adressage
+```
+LDA #$42       ; IMM: charger la valeur 42
+LDA <$10       ; DIR: charger depuis (DP*256)+$10
+LDA 5,X        ; IDX: charger depuis X + 5
+LDA $1234      ; EXT: charger depuis l'adresse $1234
+CLRA           ; INH: clear A (pas d'opérande)
+```
+
 ### Test des flags
 ```
 LDA #$7F       ; A=127 (N=0, Z=0)
@@ -242,7 +299,8 @@ DECA           ; A=127 (N=0, V=1 - dépassement négatif)
 
 ## ⚠️ Limitations
 
-- **Instructions limitées** : ~15 instructions sur ~200 disponibles
+- **Modes d'adressage** : Indirect non implémenté, Indexé partiel (offset 8 bits seulement)
+- **Instructions disponibles** : ~35 instructions implémentées (arithmétique complète sur A/B)
 - **Instructions limitées** : ~15 instructions sur ~200 disponibles
 - **Adressage restreint** : Principalement immédiat et étendu
 - **Pas de pile** : PUSH/PULL non implémentés
