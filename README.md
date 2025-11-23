@@ -153,16 +153,16 @@ Le projet suit une architecture modulaire en 4 composants :
 | CC | 8 bits | Code condition (flags) |
 
 ### Flags du registre CC
-- Bit 0 : C (Carry)
-- Bit 1 : V (Overflow)
-- Bit 2 : Z (Zero)
-- Bit 3 : N (Negative)
-- Bit 4 : I (Interrupt mask)
-- Bit 5 : H (Half carry)
-- Bit 6 : F (Fast interrupt mask)
-- Bit 7 : E (Entire state on stack)
+- Bit 0 : C (Carry) - Report des opérations arithmétiques
+- Bit 1 : V (Overflow) - Débordement arithmétique
+- Bit 2 : Z (Zero) - Résultat nul
+- Bit 3 : N (Negative) - Bit de poids fort à 1
+- Bit 4 : I (Interrupt mask) - Masquage des interruptions
+- Bit 5 : H (Half carry) - Report du 4ème bit (additions)
+- Bit 6 : F (Fast interrupt mask) - Masquage des interruptions rapides
+- Bit 7 : E (Entire state on stack) - État complet sauvegardé
 
-⚠️ **Note** : Actuellement, seuls les flags Z et N sont implémentés.
+✅ **Tous les flags sont maintenant implémentés et fonctionnels !**
 
 ## 🖥️ Système I/O
 
@@ -179,6 +179,28 @@ cpu.ioMonitor = (addr, val) -> {
 
 - **Adresse $D000** : Terminal de sortie (caractères ASCII)
 - **Extensible** : Ajoutez facilement de nouveaux périphériques
+
+## 🧪 Test des Flags
+
+### Lancement rapide des tests
+```bash
+# Windows
+run_simulator.bat
+
+# Linux/Mac
+javac src/sim/Simulateur6809.java && java -cp src sim.Simulateur6809
+```
+
+### Fichiers de test disponibles
+- `test_flags.asm` : Test complet de tous les flags
+- `test_flags_simple.asm` : Test rapide des flags principaux
+- `GUIDE_TEST_FLAGS.md` : Guide détaillé pour tester les flags
+
+### Test manuel rapide
+1. **Flag Z** : `LDA #$00` → CC=`0100` (Z=1)
+2. **Flag N** : `LDA #$80` → CC=`1000` (N=1)
+3. **Flag V** : `LDA #$7F; INCA` → CC=`1010` (V=1)
+4. **Flag C** : `LDA #$FF; INCA` → CC=`0101` (C=1)
 
 ## 💡 Exemples
 
@@ -204,13 +226,23 @@ BRA LOOP       ; Boucle infinie
 ### Utilisation des registres D
 ```
 LDD #$1234     ; Charger 1234 dans D (A=12, B=34)
-ADDD #$1111    ; Additionner 1111
+ADDD #$1111    ; Additionner 1111 (Z=0, N=1, C=0, V=0)
 STD $D002      ; Stocker le résultat
+```
+
+### Test des flags
+```
+LDA #$7F       ; A=127 (N=0, Z=0)
+INCA           ; A=128 (N=1, V=1 - dépassement positif)
+LDA #$FF       ; A=255 (N=1, Z=0)
+INCA           ; A=0 (Z=1, C=1 - carry, N=0)
+LDA #$80       ; A=128 (N=1, Z=0)
+DECA           ; A=127 (N=0, V=1 - dépassement négatif)
 ```
 
 ## ⚠️ Limitations
 
-- **Flags incomplets** : Seuls Z et N sont gérés
+- **Instructions limitées** : ~15 instructions sur ~200 disponibles
 - **Instructions limitées** : ~15 instructions sur ~200 disponibles
 - **Adressage restreint** : Principalement immédiat et étendu
 - **Pas de pile** : PUSH/PULL non implémentés

@@ -19,6 +19,16 @@ class CPU6809_V6 {
     public int A = 0, B = 0, DP = 0, CC = 0;
     // Registres 16 bits
     public int X = 0, Y = 0, U = 0, S = 0, PC = 0;
+
+    // Constantes pour les flags du registre CC
+    public static final int FLAG_C = 0x01; // Carry
+    public static final int FLAG_V = 0x02; // Overflow
+    public static final int FLAG_Z = 0x04; // Zero
+    public static final int FLAG_N = 0x08; // Negative
+    public static final int FLAG_I = 0x10; // Interrupt mask
+    public static final int FLAG_H = 0x20; // Half carry
+    public static final int FLAG_F = 0x40; // Fast interrupt mask
+    public static final int FLAG_E = 0x80; // Entire state on stack
     
     // Mémoire 64KB
     public int[] memory = new int[65536];
@@ -48,11 +58,146 @@ class CPU6809_V6 {
         B = value & 0xFF; 
     }
 
+    // Méthode générale pour les chargements (N, Z seulement)
     public void updateFlags(int value, boolean is16Bit) {
-        CC &= ~(0x04 | 0x08); // Reset Z, N
-        if (value == 0) CC |= 0x04; // Z
+        updateFlagsNZ(value, is16Bit);
+    }
+
+    // Mise à jour des flags N et Z (utilisé pour les chargements)
+    public void updateFlagsNZ(int value, boolean is16Bit) {
+        // Reset N, Z
+        CC &= ~(FLAG_N | FLAG_Z);
+
+        // Test Zero
+        int mask = is16Bit ? 0xFFFF : 0xFF;
+        if ((value & mask) == 0) {
+            CC |= FLAG_Z;
+        }
+
+        // Test Negative (bit de poids fort)
         int msb = is16Bit ? 0x8000 : 0x80;
-        if ((value & msb) != 0) CC |= 0x08; // N
+        if ((value & msb) != 0) {
+            CC |= FLAG_N;
+        }
+    }
+
+    // Mise à jour des flags pour l'addition 8 bits (N, Z, V, C, H)
+    public void updateFlagsAdd8(int operand1, int operand2, int result) {
+        // Reset N, Z, V, C, H
+        CC &= ~(FLAG_N | FLAG_Z | FLAG_V | FLAG_C | FLAG_H);
+
+        // Calcul du résultat sur 8 bits
+        result &= 0xFF;
+
+        // Test Zero
+        if (result == 0) {
+            CC |= FLAG_Z;
+        }
+
+        // Test Negative (bit 7)
+        if ((result & 0x80) != 0) {
+            CC |= FLAG_N;
+        }
+
+        // Test Carry (bit 8)
+        int sum = (operand1 & 0xFF) + (operand2 & 0xFF);
+        if (sum > 0xFF) {
+            CC |= FLAG_C;
+        }
+
+        // Test Half Carry (bit 4)
+        if (((operand1 & 0x0F) + (operand2 & 0x0F)) > 0x0F) {
+            CC |= FLAG_H;
+        }
+
+        // Test Overflow (V)
+        // V = 1 si les deux opérandes ont le même bit 7 et que le résultat a un bit 7 différent
+        boolean op1_neg = (operand1 & 0x80) != 0;
+        boolean op2_neg = (operand2 & 0x80) != 0;
+        boolean res_neg = (result & 0x80) != 0;
+        if (op1_neg == op2_neg && op1_neg != res_neg) {
+            CC |= FLAG_V;
+        }
+    }
+
+    // Mise à jour des flags pour l'addition 16 bits (N, Z, V, C)
+    public void updateFlagsAdd16(int operand1, int operand2, int result) {
+        // Reset N, Z, V, C
+        CC &= ~(FLAG_N | FLAG_Z | FLAG_V | FLAG_C);
+
+        // Calcul du résultat sur 16 bits
+        result &= 0xFFFF;
+
+        // Test Zero
+        if (result == 0) {
+            CC |= FLAG_Z;
+        }
+
+        // Test Negative (bit 15)
+        if ((result & 0x8000) != 0) {
+            CC |= FLAG_N;
+        }
+
+        // Test Carry (bit 16)
+        long sum = (operand1 & 0xFFFFL) + (operand2 & 0xFFFFL);
+        if (sum > 0xFFFFL) {
+            CC |= FLAG_C;
+        }
+
+        // Test Overflow (V)
+        // V = 1 si les deux opérandes ont le même bit 15 et que le résultat a un bit 15 différent
+        boolean op1_neg = (operand1 & 0x8000) != 0;
+        boolean op2_neg = (operand2 & 0x8000) != 0;
+        boolean res_neg = (result & 0x8000) != 0;
+        if (op1_neg == op2_neg && op1_neg != res_neg) {
+            CC |= FLAG_V;
+        }
+    }
+
+    // Mise à jour des flags pour la décrémentation 8 bits (N, Z, V)
+    public void updateFlagsDec8(int original, int result) {
+        // Reset N, Z, V
+        CC &= ~(FLAG_N | FLAG_Z | FLAG_V);
+
+        result &= 0xFF;
+
+        // Test Zero
+        if (result == 0) {
+            CC |= FLAG_Z;
+        }
+
+        // Test Negative (bit 7)
+        if ((result & 0x80) != 0) {
+            CC |= FLAG_N;
+        }
+
+        // Test Overflow : V = 1 si décrémentation de 0x80 (cas spécial 6809)
+        if (original == 0x80) {
+            CC |= FLAG_V;
+        }
+    }
+
+    // Mise à jour des flags pour l'incrémentation 8 bits (N, Z, V)
+    public void updateFlagsInc8(int original, int result) {
+        // Reset N, Z, V
+        CC &= ~(FLAG_N | FLAG_Z | FLAG_V);
+
+        result &= 0xFF;
+
+        // Test Zero
+        if (result == 0) {
+            CC |= FLAG_Z;
+        }
+
+        // Test Negative (bit 7)
+        if ((result & 0x80) != 0) {
+            CC |= FLAG_N;
+        }
+
+        // Test Overflow : V = 1 si incrémentation de 0x7F (cas spécial 6809)
+        if (original == 0x7F) {
+            CC |= FLAG_V;
+        }
     }
 
     // Interruption Matérielle (Simulation C.1)
@@ -209,9 +354,26 @@ class InstructionDecoder_V6 {
             case 0xFD: writeWord(fetchWord(), cpu.getD()); cpu.updateFlags(cpu.getD(), true); break; 
             case 0xBF: writeWord(fetchWord(), cpu.X); cpu.updateFlags(cpu.X, true); break;
 
-            case 0xC3: int r = cpu.getD() + fetchWord(); cpu.setD(r); cpu.updateFlags(r, true); break; 
-            case 0x4C: cpu.A = (cpu.A + 1) & 0xFF; cpu.updateFlags(cpu.A, false); break; 
-            case 0x4A: cpu.A = (cpu.A - 1) & 0xFF; cpu.updateFlags(cpu.A, false); break; 
+            case 0xC3: {
+                int operand = fetchWord();
+                int original = cpu.getD();
+                int r = original + operand;
+                cpu.setD(r);
+                cpu.updateFlagsAdd16(original, operand, r);
+                break;
+            }
+            case 0x4C: {
+                int original = cpu.A;
+                cpu.A = (cpu.A + 1) & 0xFF;
+                cpu.updateFlagsInc8(original, cpu.A);
+                break;
+            }
+            case 0x4A: {
+                int original = cpu.A;
+                cpu.A = (cpu.A - 1) & 0xFF;
+                cpu.updateFlagsDec8(original, cpu.A);
+                break;
+            } 
 
             // Branchements
             case 0x7E: cpu.PC = fetchWord(); break; 
@@ -320,12 +482,18 @@ public class Simulateur6809 extends JFrame {
         codeEditor = new JTextArea();
         codeEditor.setFont(new Font("Consolas", Font.PLAIN, 16));
         codeEditor.setText(
-            "LDX #$1000  ; Init X\n" +
-            "LDY #$2000  ; Init Y\n" +
-            "LDA #$48    ; 'H'\n" +
-            "STA $D000   ; Afficher\n" +
-            "LDA #$49    ; 'I'\n" +
-            "STA $D000\n" +
+            "; Test des flags - Programme de démonstration\n" +
+            "LDA #$00    ; A=0 (Z=1, N=0)\n" +
+            "INCA        ; A=1 (Z=0, N=0)\n" +
+            "LDA #$7F    ; A=127\n" +
+            "INCA        ; A=128 (N=1, V=1 - dépassement positif)\n" +
+            "LDA #$FF    ; A=255 (N=1)\n" +
+            "INCA        ; A=0 (Z=1, C=1 - carry, N=0)\n" +
+            "LDA #$80    ; A=128 (N=1)\n" +
+            "DECA        ; A=127 (N=0, V=1 - dépassement négatif)\n" +
+            "LDD #$0000  ; D=0 (Z=1, N=0)\n" +
+            "ADDD #$FFFF ; D=65535 (N=1, C=0)\n" +
+            "ADDD #$0001 ; D=0 (Z=1, C=1 - carry 16 bits)\n" +
             "NOP"
         );
         JPanel pnlCode = new JPanel(new BorderLayout());
