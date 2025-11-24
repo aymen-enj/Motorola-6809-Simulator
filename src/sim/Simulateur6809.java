@@ -32,6 +32,7 @@ class CPU6809_V6 {
     
     // Mémoire 64KB
     public int[] memory = new int[65536];
+    public boolean[] memoryRevealed = new boolean[65536];
 
     // Interface pour les Périphériques (I/O)
     public interface IOMonitor {
@@ -45,6 +46,7 @@ class CPU6809_V6 {
 
     public void reset() {
         Arrays.fill(memory, 0);
+        Arrays.fill(memoryRevealed, false);
         A = B = DP = CC = 0;
         X = Y = U = 0;
         S = 0x0100; // Pile standard
@@ -206,6 +208,10 @@ class CPU6809_V6 {
         int vector = (memory[0xFFFC] << 8) | memory[0xFFFD];
         if (vector == 0) vector = 0x1000; // Fallback si non défini
         PC = vector;
+    }
+
+    public void revealAddress(int addr) {
+        memoryRevealed[addr & 0xFFFF] = true;
     }
 }
 
@@ -621,7 +627,11 @@ class InstructionDecoder_V6 {
         }
     }
 
-    private int fetchByte() { return cpu.memory[cpu.PC++] & 0xFF; }
+    private int fetchByte() {
+        int addr = cpu.PC & 0xFFFF;
+        cpu.revealAddress(addr);
+        return cpu.memory[cpu.PC++] & 0xFF;
+    }
     private int fetchWord() { return (fetchByte() << 8) | fetchByte(); }
     // Calcul d'adresse pour le mode Direct
     private int getDirectAddr(int offset8) {
@@ -657,12 +667,17 @@ class InstructionDecoder_V6 {
         return regValue & 0xFFFF;
     }
 
-    private int readMem(int addr) { return cpu.memory[addr & 0xFFFF] & 0xFF; }
+    private int readMem(int addr) {
+        addr &= 0xFFFF;
+        cpu.revealAddress(addr);
+        return cpu.memory[addr] & 0xFF;
+    }
     private int readWord(int addr) { return (readMem(addr) << 8) | readMem(addr+1); }
 
     private void writeMem(int addr, int val) {
         addr &= 0xFFFF;
         cpu.memory[addr] = val & 0xFF;
+        cpu.revealAddress(addr);
         if (cpu.ioMonitor != null) cpu.ioMonitor.onWrite(addr, val);
     }
 
@@ -905,7 +920,9 @@ public class Simulateur6809 extends JFrame {
     }
 
     private void initMemTable() {
-        for(int i=0; i<100; i++) memoryModel.addRow(new Object[]{String.format("%04X", i), "00"});
+        for(int i=0; i<100; i++) {
+            memoryModel.addRow(new Object[]{String.format("%04X", i), "--"});
+        }
     }
 
     private void updateMemoryFromTable(int row) {
@@ -913,6 +930,7 @@ public class Simulateur6809 extends JFrame {
             int addr = Integer.parseInt((String)memoryModel.getValueAt(row, 0), 16);
             int val = Integer.parseInt((String)memoryModel.getValueAt(row, 1), 16);
             cpu.memory[addr] = val & 0xFF;
+            cpu.revealAddress(addr);
         } catch (Exception e) {}
     }
 
@@ -933,7 +951,9 @@ public class Simulateur6809 extends JFrame {
         txtCC.setText(String.format("%8s", Integer.toBinaryString(cpu.CC)).replace(' ', '0'));
 
         for(int i=0; i<100; i++) {
-            memoryModel.setValueAt(String.format("%02X", cpu.memory[i]), i, 1);
+            int addr = i;
+            String value = cpu.memoryRevealed[addr] ? String.format("%02X", cpu.memory[addr]) : "--";
+            memoryModel.setValueAt(value, i, 1);
         }
     }
 

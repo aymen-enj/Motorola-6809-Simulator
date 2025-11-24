@@ -8,6 +8,7 @@ Un simulateur complet du processeur Motorola 6809 avec interface graphique Java 
 - [Fonctionnalités](#-fonctionnalités)
 - [Installation](#-installation)
 - [Utilisation](#-utilisation)
+- [Suivi mémoire pas à pas](#-suivi-mémoire-pas-à-pas)
 - [Statistiques du projet](#-statistiques-du-projet)
 - [Architecture du code](#-architecture-du-code)
 - [Instructions supportées](#-instructions-supportées)
@@ -96,6 +97,15 @@ Cliquez sur n'importe quel champ de registre pour le modifier manuellement (form
 
 ### Breakpoints
 Entrez les adresses séparées par des virgules dans le champ "Breakpoints" (ex: `0010,0020,0030`).
+
+## 🧠 Suivi mémoire pas à pas
+
+- Le tableau mémoire affiche désormais `--` pour les octets qui n’ont pas encore été lus ou écrits.
+- À chaque instruction exécutée (pas à pas ou RUN), seules les adresses réellement consultées sont révélées.
+- L’édition manuelle de la mémoire (colonne “Value (Hex)”) dévoile immédiatement l’adresse modifiée.
+- Cette fonctionnalité permet de visualiser précisément les accès mémoire du programme et de comprendre l’enchaînement des instructions.
+
+Exemple : après un premier “Pas à Pas”, seules les adresses contenant l’opcode et son opérande sont visibles ; les autres restent masquées jusqu’à être utilisées.
 
 ## 🏗️ Architecture du code
 
